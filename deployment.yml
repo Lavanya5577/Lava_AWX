@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: lavanyaranganathcapstoneproject 
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lavanyaranganathcapstoneproject
+  template:
+    metadata:
+      labels:
+        app: lavanyaranganathcapstoneproject 
+    spec:
+      containers:
+        - name: lavanyaranganathcapstoneproject 
+          image: myreg23.azurecr.io/lavanyaranganathcapstoneproject
+          ports:
+          - containerPort: 8080
