@@ -1,19 +1,10 @@
-apiVersion : apps/v1
-kind: Deployment
-metadata:
-  name: lavanyaranganathcapstoneproject 
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: lavanyaranganathcapstoneproject
-  template:
-    metadata:
-      labels:
-        app: lavanyaranganathcapstoneproject 
-    spec:
-      containers:
-        - name: lavanyaranganathcapstoneproject 
-          image: myreg23.azurecr.io/lavanyaranganathcapstoneproject
-          ports:
-          - containerPort: 8080
+---
+- name: Update all packages on remote servers
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Update all packages to the latest version
+      apt:
+        update_cache: yes
+        upgrade: dist
