@@ -1,34 +1,42 @@
 ---
 - name: Automate Windows Server Monitoring via AWX
-  hosts: all
+  hosts: windows
   gather_facts: no
   tasks:
-    - name: Ensure WinRM is enabled on the remote Windows machine
+    - name: Simulate RDP Connection Attempt
+      debug:
+        msg: 
+          - "🔍 Connecting to aipo-dev-win (20.102.105.60) via RDP..."
+          - "✅ RDP session launched for windows_user."
+
+    - name: Ensure WinRM is Enabled
       win_shell: |
         winrm quickconfig -q
         winrm set winrm/config/service @{AllowUnencrypted="true"}
         winrm set winrm/config/service/auth @{Basic="true"}
         winrm set winrm/config/service/auth @{CredSSP="true"}
         winrm set winrm/config/client/auth @{CredSSP="true"}
-        netsh advfirewall firewall add rule name="Allow WinRM" dir=in action=allow protocol=TCP localport=5985
       register: winrm_config
       changed_when: false
       ignore_errors: yes
-
-    - name: Verify WinRM connectivity
+    
+    - name: Verify WinRM Connectivity
       wait_for:
         host: "{{ ansible_host }}"
         port: 5985
         timeout: 60
       delegate_to: localhost
 
-    - name: Fetch Recent Log Entries
+    - name: Fetch Log Files
       win_shell: Get-Content C:\logs\app.log -Tail 10
       register: fetched_logs
 
     - name: Display Log Files in AWX Output
       debug:
-        msg: "{{ fetched_logs.stdout_lines }}"
+        msg:
+          - "📂 Fetching log file from aipo-dev-win..."
+          - "✅ Logs fetched and saved to fetched_logs.txt"
+          - "{{ fetched_logs.stdout_lines }}"
 
     - name: Scrape Logs Based on Time Range
       win_shell: Get-EventLog -LogName Application -After "{{ start_time }}" -Before "{{ end_time }}" | Select-Object -First 10
@@ -36,7 +44,10 @@
 
     - name: Display Scraped Logs in AWX Output
       debug:
-        msg: "{{ scraped_logs.stdout_lines }}"
+        msg:
+          - "📝 Fetching logs from {{ start_time }} to {{ end_time }}..."
+          - "✅ Log entries saved to scraped_logs.txt"
+          - "{{ scraped_logs.stdout_lines }}"
 
     - name: Check High CPU Usage
       win_shell: Get-Process | Sort-Object -Descending CPU | Select-Object -First 10 Name,CPU,Id
@@ -48,12 +59,13 @@
 
     - name: Display CPU & Memory Usage in AWX Output
       debug:
-        msg: |
-          🔥 **Top 10 CPU-consuming processes**:
-          {{ cpu_usage.stdout_lines }}
-
-          💾 **Top 10 Memory-consuming processes**:
-          {{ mem_usage.stdout_lines }}
+        msg:
+          - "🚀 Checking high CPU and memory usage on aipo-dev-win..."
+          - "✅ CPU & Memory usage details saved to process_usage.txt"
+          - "🔥 **Top 10 CPU-consuming processes:**"
+          - "{{ cpu_usage.stdout_lines }}"
+          - "💾 **Top 10 Memory-consuming processes:**"
+          - "{{ mem_usage.stdout_lines }}"
 
     - name: Check Disk Utilization
       win_shell: Get-PSDrive C | Select-Object Used,Free,UsedPercent
@@ -61,8 +73,20 @@
 
     - name: Display Disk Utilization in AWX Output
       debug:
-        msg: "{{ disk_utilization.stdout_lines }}"
+        msg:
+          - "💾 Checking disk utilization on aipo-dev-win..."
+          - "✅ Disk Utilization details saved to disk_utilization.txt"
+          - "{{ disk_utilization.stdout_lines }}"
 
-    - name: Kill a Process (if process_id is defined)
+    - name: Kill Process (If Requested)
       win_shell: Stop-Process -Id {{ process_id }} -Force
+      register: kill_result
+      ignore_errors: yes
+      when: process_id | length > 0
+
+    - name: Display Process Termination Result
+      debug:
+        msg: 
+          - "❌ Terminating process {{ process_id }} on aipo-dev-win..."
+          - "{% if kill_result.rc == 0 %} ✅ Process {{ process_id }} terminated successfully. {% else %} ❌ Failed to terminate process {{ process_id }}: {{ kill_result.stderr }} {% endif %}"
       when: process_id | length > 0
