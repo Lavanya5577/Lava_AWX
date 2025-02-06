@@ -1,13 +1,14 @@
 ---
-- name: Automate Windows Server Monitoring via AWX (RDP-based)
-  hosts: all
+- name: Automate Windows Server Monitoring via AWX
+  hosts: windows
   gather_facts: no
   tasks:
-    - name: Simulate RDP Connection
-      debug:
-        msg: 
-          - "🔍 Connecting to {{ ansible_host }} via RDP..."
-          - "✅ RDP session established for {{ ansible_user }}."
+    - name: Verify WinRM connectivity
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: 5985
+        timeout: 60
+      delegate_to: localhost
 
     - name: Fetch Log Files
       win_shell: Get-Content C:\logs\app.log -Tail 10
@@ -18,7 +19,9 @@
         msg: "{{ fetched_logs.stdout_lines }}"
 
     - name: Scrape Logs Based on Time Range
-      win_shell: Get-EventLog -LogName Application -After "{{ start_time }}" -Before "{{ end_time }}" | Select-Object -First 10
+      win_shell: |
+        $logs = Get-EventLog -LogName Application -After "{{ start_time }}" -Before "{{ end_time }}" | Select-Object -First 10
+        if ($logs) { $logs } else { "No logs found in the given range." }
       register: scraped_logs
 
     - name: Display Scraped Logs in AWX Output
@@ -36,10 +39,10 @@
     - name: Display CPU & Memory Usage in AWX Output
       debug:
         msg: |
-          🔥 **Top 10 CPU-consuming processes:**
+          Top 10 CPU-consuming processes:
           {{ cpu_usage.stdout_lines }}
 
-          💾 **Top 10 Memory-consuming processes:**
+          Top 10 Memory-consuming processes:
           {{ mem_usage.stdout_lines }}
 
     - name: Check Disk Utilization
@@ -51,17 +54,17 @@
         msg: "{{ disk_utilization.stdout_lines }}"
 
     - name: Kill Process Automatically (Optional)
-      win_shell: Stop-Process -Id {{ process_id }} -Force
+      win_shell: |
+        if (Get-Process -Id {{ process_id }} -ErrorAction SilentlyContinue) {
+          Stop-Process -Id {{ process_id }} -Force
+          "✅ Process {{ process_id }} terminated successfully."
+        } else {
+          "❌ Process {{ process_id }} not found."
+        }
       when: process_id | length > 0
-      register: kill_result
-      ignore_errors: yes
+      register: kill_process_result
 
     - name: Display Process Termination Result
       debug:
-        msg: 
-          - "❌ Terminating process {{ process_id }} on {{ ansible_host }}..."
-          - "{% if kill_result.rc == 0 %} ✅ Process {{ process_id }} terminated successfully. {% else %} ❌ Failed to terminate process {{ process_id }}: {{ kill_result.stderr }} {% endif %}"
+        msg: "{{ kill_process_result.stdout_lines }}"
       when: process_id | length > 0
-
-  vars_files:
-    - input_vars.yml
