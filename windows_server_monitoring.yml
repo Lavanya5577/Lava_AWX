@@ -1,6 +1,6 @@
 ---
 - name: Automate Windows Server Monitoring via AWX
-  hosts: 10.112.0.10
+  hosts: all
   gather_facts: no
   tasks:
     - name: Ensure WinRM is enabled
