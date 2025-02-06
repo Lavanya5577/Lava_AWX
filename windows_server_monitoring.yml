@@ -1,6 +1,6 @@
 ---
 - name: Automate Windows Server Monitoring via AWX
-  hosts: all
+  hosts: windows
   gather_facts: no
   tasks:
     - name: Verify WinRM connectivity
