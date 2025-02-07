@@ -1,70 +1,43 @@
 ---
-- name: Automate Windows Server Monitoring via AWX
-  hosts: 10.112.0.10
-  gather_facts: no
+- name: Manage Linux Server Tasks
+  hosts: 10.112.0.11
+  become: true
+  vars:
+    remote_log_path: "{{remote_log_path}}"
+    local_log_path: "{{local_log_path}}"
+    start_time: "{{start_time}}"
+    end_time: "{{end_time}}"
+ 
   tasks:
-    - name: Verify WinRM connectivity
-      wait_for:
-        host: "{{ ansible_host }}"
-        port: 5985
-        timeout: 60
-      delegate_to: localhost
-
-    - name: Fetch Log Files
-      win_shell: Get-Content C:\logs\app.log -Tail 10
-      register: fetched_logs
-
-    - name: Display Log Files in AWX Output
+    - name: Fetch files from server
+      fetch:
+        src: "{{ remote_log_path }}"
+        dest: "./fetched_logs/"
+        flat: yes
+ 
+    - name: Scrap log file for specific duration
+      shell: "awk '$0 ~ /{{ start_time }}/,/{{ end_time }}/' {{ remote_log_path }}"
+      register: log_output
+ 
+    - name: Save log output locally
+      copy:
+        content: "{{ log_output.stdout }}"
+        dest: "./retrieved_logs.txt"
+    - name: Display scraped logs
       debug:
-        msg: "{{ fetched_logs.stdout_lines }}"
-
-    - name: Scrape Logs Based on Time Range
-      win_shell: |
-        $logs = Get-EventLog -LogName Application -After "{{ start_time }}" -Before "{{ end_time }}" | Select-Object -First 10
-        if ($logs) { $logs } else { "No logs found in the given range." }
-      register: scraped_logs
-
-    - name: Display Scraped Logs in AWX Output
+        msg: "{{ log_output.stdout_lines }}"
+    - name: Check for high memory and CPU usage processes
+      shell: "ps aux --sort=-%mem,-%cpu | head -5"
+      register: process_output
+ 
+    - name: Display high resource-consuming processes
       debug:
-        msg: "{{ scraped_logs.stdout_lines }}"
-
-    - name: Check High CPU Usage
-      win_shell: Get-Process | Sort-Object -Descending CPU | Select-Object -First 10 Name,CPU,Id
-      register: cpu_usage
-
-    - name: Check High Memory Usage
-      win_shell: Get-Process | Sort-Object -Descending WS | Select-Object -First 10 Name,WS,Id
-      register: mem_usage
-
-    - name: Display CPU & Memory Usage in AWX Output
+        msg: "{{ process_output.stdout_lines }}"
+ 
+    - name: Check disk utilization
+      command: df -h
+      register: disk_usage
+ 
+    - name: Display disk usage
       debug:
-        msg: |
-          Top 10 CPU-consuming processes:
-          {{ cpu_usage.stdout_lines }}
-
-          Top 10 Memory-consuming processes:
-          {{ mem_usage.stdout_lines }}
-
-    - name: Check Disk Utilization
-      win_shell: Get-PSDrive C | Select-Object Used,Free,UsedPercent
-      register: disk_utilization
-
-    - name: Display Disk Utilization in AWX Output
-      debug:
-        msg: "{{ disk_utilization.stdout_lines }}"
-
-    - name: Kill Process Automatically (Optional)
-      win_shell: |
-        if (Get-Process -Id {{ process_id }} -ErrorAction SilentlyContinue) {
-          Stop-Process -Id {{ process_id }} -Force
-          "✅ Process {{ process_id }} terminated successfully."
-        } else {
-          "❌ Process {{ process_id }} not found."
-        }
-      when: process_id | length > 0
-      register: kill_process_result
-
-    - name: Display Process Termination Result
-      debug:
-        msg: "{{ kill_process_result.stdout_lines }}"
-      when: process_id | length > 0
+        msg: "{{ disk_usage.stdout_lines }}"
