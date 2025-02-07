@@ -2,15 +2,6 @@
 - name: Manage Windows Server Tasks
   hosts: windows
   gather_facts: no
-  vars:
-    server_name: "aipo-dev-win"
-    server_ip: "20.102.105.60"
-    username: "windows_user"
-    password: "THpW68qJw3Br!DX"  # Store securely in AWX credential manager
-    log_file_path: "C:\\logs\\app.log"
-    start_time: "02/01/2025 10:00"
-    end_time: "02/02/2025 12:00"
-    process_pid: 1234  # Example PID, can be overridden in AWX
 
   tasks:
     - name: Fetch log file from Windows server
