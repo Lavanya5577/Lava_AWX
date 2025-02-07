@@ -1,6 +1,6 @@
 ---
 - name: Manage Windows Server Tasks
-  hosts: 20.102.105.60
+  hosts: windows
   gather_facts: no
 
   tasks:
