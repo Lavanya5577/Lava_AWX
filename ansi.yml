@@ -3,7 +3,7 @@
   hosts: localhost
   gather_facts: no
   vars:
-    sys_id2: ""  # Ensure this is populated with a valid sys_id
+    sys_id3: ""  # Ensure this is populated with a valid sys_id
     service_now:
       instance: "dev247928.service-now.com"
       username: "admin"
