@@ -2,13 +2,14 @@
 - name: Handle Datadog Alerts and Manage ServiceNow Cases
   hosts: localhost
   gather_facts: no
+
   vars:
-    sys_id3: ""  # Ensure this is populated with a valid sys_id
+    sys_id3: ""
     service_now:
       instance: "dev247928.service-now.com"
       username: "admin"
       password: "%ml4Vs9RXE/s"
-      case_table: "u_case1"  # Ensure this is the correct table name
+      case_table: "u_case1"
       incident_table: "incident"
 
     datadog:
@@ -19,16 +20,7 @@
     recovery_window: 300  # 5 minutes in seconds
 
   tasks:
-    - name: Debug sys_id3
-      ansible.builtin.debug:
-        var: sys_id3
-
-    - name: Fail if sys_id3 is not defined
-      ansible.builtin.fail:
-        msg: "The sys_id3 variable is not defined. Please provide a valid sys_id."
-      when: sys_id3 == ""
-
-    - name: Fetch case details from ServiceNow using sys_id3
+    - name: Fetch case details from ServiceNow using sys_id
       ansible.builtin.uri:
         url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.case_table }}/{{ sys_id3 }}"
         method: GET
