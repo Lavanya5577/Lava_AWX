@@ -1,7 +1,7 @@
 ---
 - name: Handle Datadog Alerts and Manage ServiceNow Cases
   hosts: localhost
-  gather_facts: no
+  gather_facts: yes
   vars:
     sys_id: ""
     service_now:
