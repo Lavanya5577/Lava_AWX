@@ -3,7 +3,7 @@
   hosts: localhost
   gather_facts: no
   vars:
-    sys_id3: ""
+    sys_id: ""
     service_now:
       instance: "dev247928.service-now.com"
       username: "admin"
@@ -18,7 +18,7 @@
   tasks:
     - name: Fetch case details from ServiceNow using sys_id
       ansible.builtin.uri:
-        url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.case_table }}/{{ sys_id3 }}"
+        url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.case_table }}/{{ sys_id }}"
         method: GET
         user: "{{ service_now.username }}"
         password: "{{ service_now.password }}"
@@ -50,7 +50,7 @@
         var: alert_details
     - name: Check if alert is resolved
       ansible.builtin.uri:
-        url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.case_table }}/{{ sys_id3 }}"
+        url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.case_table }}/{{ sys_id }}"
         method: PATCH
         user: "{{ service_now.username }}"
         password: "{{ service_now.password }}"
