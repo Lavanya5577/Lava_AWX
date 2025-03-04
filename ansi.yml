@@ -38,7 +38,7 @@
 
     - name: Check if case is resolved
       ansible.builtin.set_fact:
-        case_status: "{{ case_details.json.result.state }}"
+        case_status: "{{ case_details.json.result.u_state }}"
 
     - name: Terminate AWX flow if case is resolved
       meta: end_play
