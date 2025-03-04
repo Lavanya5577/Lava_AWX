@@ -55,7 +55,7 @@
           Content-Type: "application/json"
         body_format: json
         body:
-          short_description: "Incident for unresolved case {{ sys_id2 }}"
+          short_description: "Incident for unresolved case {{ sys_id }}"
           description: "The case is still open in ServiceNow. Creating an incident."
           impact: "2"
           urgency: "2"
