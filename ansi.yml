@@ -41,7 +41,7 @@
 
     - name: Extract alert ID from case details
       ansible.builtin.set_fact:
-        alert_id: "{{ case_details.json.result.u_ID }}"
+        alert_id: "{{ case_details.json.result.u_id }}"
 
     - name: Debug extracted alert ID
       ansible.builtin.debug:
