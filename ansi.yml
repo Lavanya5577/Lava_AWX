@@ -3,7 +3,14 @@
   gather_facts: yes
 
   vars:
-    sys_id: ""
+    sys_id: "{{awx_webhook_payload.sys_id}}"
+    # State: ""
+    # Description: ""
+    # Short description: ""
+    # Impact: ""
+    # Urgency: ""
+    # ID: ""
+
     service_now:
       instance: "dev247928.service-now.com"
       username: "admin"
@@ -14,7 +21,7 @@
     datadog:
       api_key: "9cae63ce64fcea730e71e8a71e572beb"
       app_key: "cca1ca0fe667e3ebd44f4bcc01c7f042a99b1831"
-      api_url: "https://us5.datadoghq.com/monitors"
+      api_url: "https://api.us5.datadoghq.com/api/v1/monitor"
 
     recovery_window: 30  # 30 seconds (change as needed)
 
