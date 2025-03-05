@@ -43,6 +43,10 @@
       ansible.builtin.set_fact:
         alert_id: "{{ case_details.json.result.u_id }}"
 
+    - name: Debug extracted alert ID
+      ansible.builtin.debug:
+        var: alert_id
+
     - name: Fetch alert details from Datadog
       ansible.builtin.uri:
         url: "{{ datadog.api_url }}/{{ alert_id }}"
@@ -50,8 +54,7 @@
         headers:
           DD-API-KEY: "{{ datadog.api_key }}"
           DD-APPLICATION-KEY: "{{ datadog.app_key }}"
-        return_content: yes
-        status_code: [200, 404] 
+        return_content: yes 
       register: alert_details
 
     - name: Debug alert details
