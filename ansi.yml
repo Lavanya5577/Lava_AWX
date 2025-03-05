@@ -14,7 +14,7 @@
     datadog:
       api_key: "9cae63ce64fcea730e71e8a71e572beb"
       app_key: "cca1ca0fe667e3ebd44f4bcc01c7f042a99b1831"
-      api_url: "https://us5.datadoghq.com/monitors/1300019"
+      api_url: "https://us5.datadoghq.com/monitors"
 
     recovery_window: 30  # 30 seconds (change as needed)
 
