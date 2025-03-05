@@ -3,7 +3,7 @@
   gather_facts: yes
 
   vars:
-    sys_id: ""
+    sys_id: "{{awx_webhook_payload.sys_id}}"
     service_now:
       instance: "dev247928.service-now.com"
       username: "admin"
