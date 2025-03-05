@@ -92,8 +92,8 @@
           Content-Type: "application/json"
         body_format: json
         body:
-          short_description: "{{ case_details.result.u_short_description }}"
-          description: "{{ case_details.result.u_description }}"
+          short_description: "{{ case_details.json.result.u_short_description }}"
+          description: "{{ case_details.json.result.u_description }}"
           impact: "2"
           urgency: "2"
         status_code: [200, 201]
