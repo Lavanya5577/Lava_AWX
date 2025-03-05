@@ -4,13 +4,7 @@
 
   vars:
     sys_id1: "{{awx_webhook_payload.sys_id}}"
-    # State: ""
-    # Description: ""
-    # Short description: ""
-    # Impact: ""
-    # Urgency: ""
-    # ID: ""
-
+ 
     service_now:
       instance: "dev247928.service-now.com"
       username: "admin"
