@@ -41,7 +41,7 @@
 
     - name: Debug case details
       ansible.builtin.debug:
-        var: case_details.json
+        var: case_details
 
     - name: Extract alert ID from case details
       ansible.builtin.set_fact:
@@ -92,8 +92,8 @@
           Content-Type: "application/json"
         body_format: json
         body:
-          short_description: "Datadog Alert - {{ alert_details.json.name }} (Incident Created)"
-          description: "The alert is still active after the recovery window. Escalating to an incident."
+          short_description: "{{ case_details.result.u_short_description }}"
+          description: "{{ case_details.result.u_description }}"
           impact: "2"
           urgency: "2"
         status_code: [200, 201]
