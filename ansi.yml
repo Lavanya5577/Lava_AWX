@@ -3,7 +3,7 @@
   gather_facts: yes
 
   vars:
-    sys_id: "{{awx_webhook_payload.sys_id}}"
+    sys_id1: "{{awx_webhook_payload.sys_id}}"
     # State: ""
     # Description: ""
     # Short description: ""
@@ -26,13 +26,16 @@
     recovery_window: 30  # 30 seconds (change as needed)
 
   tasks:
+    - name: details
+      ansible.builtin.debug:
+        var: sys_id1
     - name: Wait for recovery window (30 seconds)
       ansible.builtin.pause:
         seconds: "{{ recovery_window }}"
 
     - name: Fetch case details from ServiceNow using sys_id
       ansible.builtin.uri:
-        url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.case_table }}/{{ sys_id }}"
+        url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.case_table }}/{{ sys_id1 }}"
         method: GET
         user: "{{ service_now.username }}"
         password: "{{ service_now.password }}"
@@ -70,7 +73,7 @@
 
     - name: Check if alert is resolved
       ansible.builtin.uri:
-        url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.case_table }}/{{ sys_id }}"
+        url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.case_table }}/{{ sys_id1 }}"
         method: PATCH
         user: "{{ service_now.username }}"
         password: "{{ service_now.password }}"
