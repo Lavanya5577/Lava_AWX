@@ -98,11 +98,12 @@
           urgency: "2"
         status_code: [200, 201]
       when: alert_details.json.overall_state == "Alert"
+      register: incident_response
 
     - name: Extract incident ID
       ansible.builtin.set_fact:
         incident_id: "{{ incident_response.json.result.u_incident_id}}"
-      when: alert_details.json.overall_state == "Alert"
+    
 
     - name: Update case with Incident ID
       ansible.builtin.uri:
