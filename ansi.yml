@@ -77,7 +77,7 @@
         body_format: json
         body:
           u_state: "resolved"
-          work_notes: "Alert resolved in Datadog. Case closed."
+          u_description: "The alert is auto-resolved"
         status_code: [200, 201]
       when: alert_details.json.overall_state != "Alert"
       register: resolve_response
@@ -100,8 +100,8 @@
           Content-Type: "application/json"
         body_format: json
         body:
-          short_description: "{{ case_details.json.result.u_short_description }}"
-          description: "{{ case_details.json.result.u_description }}"
+          short_description: "case with sys_id:{{ sys_id1 }} is unresolved due to alert with id : {{ case_details.json.result.u_id }} in datadog is still active"
+          description: "case with sys_id:{{ sys_id1 }} is unresolved due to alert with id : {{ case_details.json.result.u_id }} in datadog is still active"
           impact: "2"
           urgency: "2"
         status_code: [200, 201]
