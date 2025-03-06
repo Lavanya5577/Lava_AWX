@@ -81,6 +81,10 @@
         status_code: [200, 201]
       when: alert_details.json.overall_state != "Alert"
 
+    - name: End play if alert is resolved
+      meta: end_play
+      when: resolve_response is changed
+
     - name: Create incident if alert is still active
       ansible.builtin.uri:
         url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.incident_table }}"
