@@ -80,7 +80,7 @@
           work_notes: "Alert resolved in Datadog. Case closed."
         status_code: [200, 201]
       when: alert_details.json.overall_state != "Alert"
-      register: resolve_response
+      register: resolve_response.json
 
     - name: End play if alert is resolved
       meta: end_play
