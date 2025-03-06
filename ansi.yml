@@ -82,12 +82,6 @@
       when: alert_details.json.overall_state != "Alert"
       register: resolve_response
 
-    # - name: End play if alert is resolved or response is empty
-    #   meta: end_play
-    #   when: 
-    #     - not resolve_response.json.result | default({}, true) or 
-    #       not resolve_response.json.result.u_state | default("", true) or 
-    #       resolve_response.json.result.u_state == "resolved"
 
     - name: End play if alert is resolved
       meta: end_play
@@ -107,7 +101,7 @@
           Content-Type: "application/json"
         body_format: json
         body:
-          short_description: "case with sys_id:{{ sys_id1 }} is unresolved due to alert with id : {{ case_details.json.result.u_id }} in datadog is still active"
+          short_description: "{{ case_details.json.result.u_short_description }}"
           description: "case with sys_id:{{ sys_id1 }} is unresolved due to alert with id : {{ case_details.json.result.u_id }} in datadog is still active"
           impact: "2"
           urgency: "2"
