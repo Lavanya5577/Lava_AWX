@@ -102,7 +102,7 @@
 
     - name: Extract incident ID
       ansible.builtin.set_fact:
-        incident_id: "{{ incident_response.json.result.incident_id}}"
+        incident_id: "{{ incident_response.json.result.number}}"
     
 
     - name: Update case with Incident ID
