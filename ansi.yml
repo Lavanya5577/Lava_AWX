@@ -82,9 +82,12 @@
       when: alert_details.json.overall_state != "Alert"
       register: resolve_response
 
-    - name: End play if alert is resolved
+    - name: End play if alert is resolved or response is empty
       meta: end_play
-      when: resolve_response.json.result.u_state == "resolved" 
+      when: 
+        - not resolve_response.json.result | default({}, true) or 
+          not resolve_response.json.result.u_state | default("", true) or 
+          resolve_response.json.result.u_state == "resolved"
 
     - name: Create incident if alert is still active
       ansible.builtin.uri:
