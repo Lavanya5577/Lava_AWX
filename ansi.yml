@@ -76,7 +76,7 @@
           Content-Type: "application/json"
         body_format: json
         body:
-          state: "resolved"
+          u_state: "resolved"
           work_notes: "Alert resolved in Datadog. Case closed."
         status_code: [200, 201]
       when: alert_details.json.overall_state != "Alert"
@@ -84,7 +84,7 @@
 
     - name: End play if alert is resolved
       meta: end_play
-      when: resolve_response.json.status == 200 or resolve_response.json.status == 201
+      when: resolve_response.json.result.u_state == "resolved" 
 
     - name: Create incident if alert is still active
       ansible.builtin.uri:
