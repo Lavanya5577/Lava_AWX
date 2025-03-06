@@ -80,11 +80,11 @@
           work_notes: "Alert resolved in Datadog. Case closed."
         status_code: [200, 201]
       when: alert_details.json.overall_state != "Alert"
-      register: resolve_response.json
+      register: resolve_response
 
     - name: End play if alert is resolved
       meta: end_play
-      when: resolve_response.status == 200 or resolve_response.status == 201
+      when: resolve_response.json.status_code == 200 or resolve_response.json.status_code == 201
 
     - name: Create incident if alert is still active
       ansible.builtin.uri:
