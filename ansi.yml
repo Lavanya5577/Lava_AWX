@@ -98,3 +98,23 @@
           urgency: "2"
         status_code: [200, 201]
       when: alert_details.json.overall_state == "Alert"
+
+    - name: Extract incident ID
+      ansible.builtin.set_fact:
+        incident_id: "{{ incident_response.json.result.u_incident_id}}"
+      when: alert_details.json.overall_state == "Alert"
+
+    - name: Update case with Incident ID
+      ansible.builtin.uri:
+        url: "https://{{ service_now.instance }}/api/now/table/{{ service_now.case_table }}/{{ sys_id1 }}"
+        method: PATCH
+        user: "{{ service_now.username }}"
+        password: "{{ service_now.password }}"
+        force_basic_auth: yes
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          u_incident_id: "{{ incident_id }}"
+        status_code: [200, 201]
+      when: alert_details.json.overall_state == "Alert"
