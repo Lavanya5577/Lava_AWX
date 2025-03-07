@@ -102,7 +102,7 @@
         body_format: json
         body:
           short_description: "{{ case_details.json.result.u_short_description }}"
-          description: "case with sys_id:{{ sys_id1 }} is unresolved due to alert with id : {{ case_details.json.result.u_id }} in datadog is still active"
+          description: "{{ case_details.json.result.u_description }}"
           impact: "2"
           urgency: "2"
         status_code: [200, 201]
