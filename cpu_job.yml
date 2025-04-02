@@ -1,0 +1,85 @@
+---
+- name: Fetch and Kill High CPU Process via AWX
+  hosts: monitored_servers
+  become: yes
+  gather_facts: no
+
+  vars:
+    server_name: "{{ SERVER_NAME }}"
+    card_number: "{{ INCIDENT_NUMBER }}"
+    user_confirmation: "{{ USER_CONFIRMATION }}"
+    service_now_instance: "{{ service_now_instance }}"
+    service_now_username: "{{ service_now_username }}"
+    service_now_password: "{{ service_now_password }}"
+
+  tasks:
+    - name: Validate Input Variables
+      fail:
+        msg: "Missing required variables: SERVER_NAME, INCIDENT_NUMBER, or USER_CONFIRMATION"
+      when: server_name is not defined or card_number is not defined or user_confirmation is not defined
+
+    - name: Check Server Connectivity
+      ping:
+      delegate_to: "{{ server_name }}"
+
+    - name: Fetch top 5 CPU-consuming processes
+      shell: "ps -eo pid,user,cmd,%cpu --sort=-%cpu | head -n 6"
+      register: cpu_processes
+      delegate_to: "{{ server_name }}"
+
+    - name: Display CPU-consuming processes
+      debug:
+        msg: "{{ cpu_processes.stdout_lines }}"
+
+    - name: Extract highest CPU-consuming process ID
+      shell: "ps -eo pid,%cpu --sort=-%cpu | awk 'NR==2 {print $1}'"
+      register: top_pid
+      delegate_to: "{{ server_name }}"
+
+    - name: Kill the highest CPU-consuming process (if confirmed)
+      shell: "kill -9 {{ top_pid.stdout }}"
+      when: user_confirmation | lower == "yes"
+      delegate_to: "{{ server_name }}"
+      ignore_errors: yes
+
+    - name: Validate CPU usage after process kill
+      shell: "top -bn1 | grep 'Cpu(s)'"
+      register: cpu_check
+      delegate_to: "{{ server_name }}"
+      when: user_confirmation | lower == "yes"
+
+    - name: Extract CPU usage percentage
+      set_fact:
+        cpu_usage: "{{ cpu_check.stdout | regex_search('[0-9]+\\.[0-9]', '\\d+') | float }}"
+      when: user_confirmation | lower == "yes"
+
+    - name: Determine if issue is resolved
+      set_fact:
+        issue_resolved: "{{ cpu_usage < 80 }}"
+      when: user_confirmation | lower == "yes"
+
+    - name: Update SNOW ticket - Issue Resolved
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ card_number }}"
+        method: PATCH
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          state: "Resolved"
+          close_notes: "CPU issue fixed automatically."
+      when: issue_resolved | default(false) | bool
+
+    - name: Update SNOW ticket - Manual Escalation
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ card_number }}"
+        method: PATCH
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          state: "Escalated"
+          work_notes: "Automation failed. Assigned to manual queue."
+      when: issue_resolved is not defined or issue_resolved == false
