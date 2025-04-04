@@ -1,85 +1,129 @@
 ---
-- name: Fetch and Kill High CPU Process via AWX
-  hosts: monitored_servers
-  become: yes
+- name: Dynamically Add Target Host for Windows
+  hosts: localhost
+  gather_facts: false
+  vars:
+    target_host: "{{ target_host }}"
+    target_user: "{{ target_user }}"
+    target_pass: "{{ target_pass }}"
+
+  tasks:
+    - name: Add Windows host to inventory
+      add_host:
+        name: "{{ target_host }}"
+        ansible_host: "{{ target_host }}"
+        ansible_user: "{{ target_user }}"
+        ansible_password: "{{ target_pass }}"
+        ansible_port: 5985
+        ansible_connection: winrm
+        ansible_winrm_transport: ntlm
+        ansible_winrm_scheme: http
+        ansible_winrm_server_cert_validation: ignore
+        ansible_shell_type: powershell
+        ansible_python_interpreter: /usr/bin/python
+        groups: dynamic_windows
+
+- name: Fetch and Kill High CPU Process via AWX (Windows Servers)
+  hosts: dynamic_windows
   gather_facts: no
 
   vars:
-    server_name: "{{ SERVER_NAME }}"
-    card_number: "{{ INCIDENT_NUMBER }}"
-    user_confirmation: "{{ USER_CONFIRMATION }}"
+    INCIDENT_NUMBER: "{{ INCIDENT_NUMBER }}"
+    USER_CONFIRMATION: "{{ USER_CONFIRMATION }}"
     service_now_instance: "{{ service_now_instance }}"
     service_now_username: "{{ service_now_username }}"
     service_now_password: "{{ service_now_password }}"
 
   tasks:
-    - name: Validate Input Variables
-      fail:
-        msg: "Missing required variables: SERVER_NAME, INCIDENT_NUMBER, or USER_CONFIRMATION"
-      when: server_name is not defined or card_number is not defined or user_confirmation is not defined
 
-    - name: Check Server Connectivity
-      ping:
-      delegate_to: "{{ server_name }}"
+    - name: Validate Required Inputs
+      fail:
+        msg: "Required variables missing: target_host, INCIDENT_NUMBER, or USER_CONFIRMATION"
+      when: target_host is not defined or INCIDENT_NUMBER is not defined or USER_CONFIRMATION is not defined
+
+    - name: Check WinRM Connectivity
+      win_ping:
 
     - name: Fetch top 5 CPU-consuming processes
-      shell: "ps -eo pid,user,cmd,%cpu --sort=-%cpu | head -n 6"
+      win_shell: |
+        Get-Process | Sort-Object CPU -Descending | Select-Object -First 5 Id, ProcessName, CPU | Format-Table -AutoSize
       register: cpu_processes
-      delegate_to: "{{ server_name }}"
 
     - name: Display CPU-consuming processes
       debug:
         msg: "{{ cpu_processes.stdout_lines }}"
 
     - name: Extract highest CPU-consuming process ID
-      shell: "ps -eo pid,%cpu --sort=-%cpu | awk 'NR==2 {print $1}'"
+      win_shell: |
+        (Get-Process | Sort-Object CPU -Descending | Select-Object -First 1).Id
       register: top_pid
-      delegate_to: "{{ server_name }}"
 
     - name: Kill the highest CPU-consuming process (if confirmed)
-      shell: "kill -9 {{ top_pid.stdout }}"
-      when: user_confirmation | lower == "yes"
-      delegate_to: "{{ server_name }}"
+      win_shell: |
+        taskkill /PID {{ top_pid.stdout }} /F
+      when: USER_CONFIRMATION | lower == "yes"
       ignore_errors: yes
 
-    - name: Validate CPU usage after process kill
-      shell: "top -bn1 | grep 'Cpu(s)'"
-      register: cpu_check
-      delegate_to: "{{ server_name }}"
-      when: user_confirmation | lower == "yes"
-
-    - name: Extract CPU usage percentage
-      set_fact:
-        cpu_usage: "{{ cpu_check.stdout | regex_search('[0-9]+\\.[0-9]', '\\d+') | float }}"
-      when: user_confirmation | lower == "yes"
+    - name: Validate CPU usage after killing process
+      win_shell: |
+        (Get-WmiObject Win32_Processor).LoadPercentage
+      register: cpu_usage
+      when: USER_CONFIRMATION | lower == "yes"
 
     - name: Determine if issue is resolved
       set_fact:
-        issue_resolved: "{{ cpu_usage < 80 }}"
-      when: user_confirmation | lower == "yes"
+        issue_resolved: "{{ cpu_usage.stdout | int < 80 }}"
+      when: USER_CONFIRMATION | lower == "yes"
+
+    - name: Get Incident Sys_ID
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident?sysparm_query=number={{ INCIDENT_NUMBER }}"
+        method: GET
+        force_basic_auth: yes
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+      register: incident_info
+      delegate_to: localhost
+
+    - name: Set Incident Sys_ID Fact
+      set_fact:
+        incident_sys_id: "{{ incident_info.json.result[0].sys_id }}"
+      when: incident_info.json.result | length > 0
 
     - name: Update SNOW ticket - Issue Resolved
       uri:
-        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ card_number }}"
+        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
         method: PATCH
+        force_basic_auth: yes
         headers:
           Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
           Content-Type: "application/json"
         body_format: json
         body:
-          state: "Resolved"
-          close_notes: "CPU issue fixed automatically."
-      when: issue_resolved | default(false) | bool
+          {
+            "state": "7",
+            "close_code": "Solution Provided",
+            "close_notes": "CPU issue resolved by killing the high-consuming process."
+          }
+        status_code: [200, 201, 403, 405]
+      when: issue_resolved | default(false) | bool and incident_sys_id is defined
+      delegate_to: localhost
 
     - name: Update SNOW ticket - Manual Escalation
       uri:
-        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ card_number }}"
+        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
         method: PATCH
+        force_basic_auth: yes
         headers:
           Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
           Content-Type: "application/json"
         body_format: json
         body:
-          state: "Escalated"
-          work_notes: "Automation failed. Assigned to manual queue."
-      when: issue_resolved is not defined or issue_resolved == false
+          {
+            "state": "2",
+            "work_notes": "CPU process could not be killed or action not approved. Escalated to manual queue."
+          }
+        status_code: [200, 405]
+      when: issue_resolved is not defined or not issue_resolved | bool and incident_sys_id is defined
+      delegate_to: localhost
