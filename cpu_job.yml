@@ -60,7 +60,7 @@
 
     - name: Kill the highest CPU-consuming process (if confirmed)
       win_shell: |
-        taskkill /PID {{ top_pid.stdout }} /F
+        taskkill /PID {{ top_pid.stdout }} 
       when: USER_CONFIRMATION | lower == "yes"
       ignore_errors: yes
 
