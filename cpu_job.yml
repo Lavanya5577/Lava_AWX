@@ -104,7 +104,7 @@
           {
             "state": "7",
             "close_code": "Solution Provided",
-            "close_notes": "CPU issue resolved by killing the high-consuming process."
+            "close_notes": "CPU issue resolved by killing the high-consuming process. Closing the ticket."
           }
         status_code: [200, 201, 403, 405]
       when: issue_resolved | default(false) | bool and incident_sys_id is defined
