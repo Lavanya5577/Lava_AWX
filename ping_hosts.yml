@@ -1,6 +1,6 @@
 ---
 - name: Ping all machines to check connectivity
-  hosts: 20.102.105.60   # Replace 'all' with a specific group if needed
+  hosts: all   # Replace 'all' with a specific group if needed
   gather_facts: no
 
   tasks:
