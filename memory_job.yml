@@ -1,0 +1,112 @@
+---
+- name: Add Target Windows Host with Dynamic Variables
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    service_now_instance: "{{ service_now_instance }}"
+    service_now_username: "{{ service_now_username }}"
+    service_now_password: "{{ service_now_password }}"
+    server_name: "{{ server_name }}"
+    incident_number: "{{ incident_number }}"
+
+  tasks:
+    - name: Add host to inventory with fixed credentials
+      add_host:
+        name: "{{ server_name }}"
+        ansible_host: "10.112.0.10"
+        ansible_user: "windows_user"
+        ansible_password: "THpW68qJw3Br!DX"
+        ansible_port: 5985
+        ansible_connection: winrm
+        ansible_winrm_transport: ntlm
+        ansible_winrm_scheme: http
+        ansible_winrm_server_cert_validation: ignore
+        ansible_shell_type: powershell
+        ansible_python_interpreter: /usr/bin/python
+        groups: fixed_windows
+
+- name: Kill High Memory Process and Update SNOW
+  hosts: fixed_windows
+  gather_facts: false
+
+  vars:
+    service_now_instance: "{{ service_now_instance }}"
+    service_now_username: "{{ service_now_username }}"
+    service_now_password: "{{ service_now_password }}"
+    server_name: "{{ server_name }}"
+    incident_number: "{{ incident_number }}"
+
+  tasks:
+    - name: Check WinRM Connectivity
+      win_ping:
+
+    - name: Get total physical memory (in MB)
+      win_shell: |
+        (Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory / 1MB
+      register: total_memory_raw
+
+    - name: Set total memory fact
+      set_fact:
+        total_memory_mb: "{{ total_memory_raw.stdout | float | round(2) }}"
+
+    - name: Get highest memory consuming process details
+      win_shell: |
+        $proc = Get-Process | Sort-Object WorkingSet -Descending | Select-Object -First 1
+        $memMB = [math]::Round($proc.WorkingSet / 1MB, 2)
+        $usagePercent = [math]::Round(($proc.WorkingSet / {{ total_memory_mb }}MB) * 100, 2)
+        "$($proc.Id),$memMB,$usagePercent"
+      register: top_process_raw
+
+    - name: Parse process details
+      set_fact:
+        top_process_details: "{{ top_process_raw.stdout | trim | split(',') }}"
+        top_pid: "{{ top_process_details[0] }}"
+        top_memory_mb: "{{ top_process_details[1] | float }}"
+        top_memory_percent: "{{ top_process_details[2] | float }}"
+
+    - name: Show process details
+      debug:
+        msg: "Top PID: {{ top_pid }}, Memory Usage: {{ top_memory_mb }} MB ({{ top_memory_percent }}%)"
+
+    - name: Kill process if memory usage > 80%
+      win_shell: |
+        taskkill /F /PID {{ top_pid }}
+      when: top_memory_percent > 80
+      register: kill_result
+      ignore_errors: yes
+
+    - name: Get Incident Sys_ID
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident?sysparm_query=number={{ incident_number }}"
+        method: GET
+        force_basic_auth: yes
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+      register: incident_info
+      delegate_to: localhost
+
+    - name: Set Incident Sys_ID Fact
+      set_fact:
+        incident_sys_id: "{{ incident_info.json.result[0].sys_id }}"
+      when: incident_info.json.result | length > 0
+
+    - name: Update SNOW ticket - PID Kill Success
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
+        method: PATCH
+        force_basic_auth: yes
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          {
+            "state": "7",
+            "close_code": "Solution Provided",
+            "close_notes": "Process with PID {{ top_pid }} using {{ top_memory_percent }}% memory was killed successfully."
+          }
+        status_code: [200, 201, 403, 405]
+      when: pid_killed | default(false) | bool and incident_sys_id is defined
+      delegate_to: localhost
