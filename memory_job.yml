@@ -28,7 +28,7 @@
 
 - name: Kill High Memory Process and Update SNOW
   hosts: fixed_windows
-  gather_facts: false
+  gather_facts: true  # Enable gathering facts to get memory information
 
   vars:
     service_now_instance: "{{ service_now_instance }}"
@@ -36,31 +36,45 @@
     service_now_password: "{{ service_now_password }}"
     server_name: "{{ server_name }}"
     incident_number: "{{ incident_number }}"
+    memory_threshold: 80
 
   tasks:
     - name: Check WinRM Connectivity
       win_ping:
 
-    - name: Get total memory in MB
-      win_shell: |
-        [math]::Round((Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory / 1MB, 2)
-      register: total_memory_raw
+    - name: Get processes and their memory usage
+      win_shell: Get-Process | Select-Object Id, ProcessName, @{Name='MemoryPercent';Expression={$_.WorkingSet64 / ([System.Environment]::OSVersion.VersionString -like '*Server*') ? ([System.Diagnostics.PerformanceCounter]::new('Process', '% Processor Time', $_.ProcessName).NextValue() / [Environment]::ProcessorCount) : (($_.WorkingSet64 / [System.Environment]::WorkingSet) * 100)}} | Sort-Object MemoryPercent -Descending
+      register: process_memory_info
 
-    - name: Get PID and memory usage of top process
-      win_shell: |
-        $totalMem = {{ total_memory_raw.stdout | float }}
-        $proc = Get-Process | Sort-Object WorkingSet -Descending | Select-Object -First 1
-        $pid = $proc.Id
-        $memMB = [math]::Round($proc.WorkingSet / 1MB, 2)
-        $usage = [math]::Round(($proc.WorkingSet / ($totalMem * 1MB)) * 100, 2)
-        if ($usage -gt 80) {
-          taskkill /F /PID $pid
-          Write-Host "Killed PID $pid consuming $usage% memory"
-        } else {
-          Write-Host "No process killed. Highest memory usage: $usage%"
-        }
-      register: kill_result
+    - name: Debug memory-consuming processes
+      debug:
+        msg: "{{ process_memory_info.stdout_lines }}"
+
+    - name: Identify processes exceeding memory threshold
+      set_fact:
+        high_memory_processes: "{{ process_memory_info.stdout_lines | map('regex_search', '(\\d+)\\s+(\\S+)\\s+([\\d\\.]+)') | select | map('regex_findall', '(\\d+)\\s+(\\S+)\\s+([\\d\\.]+)') | map('first') | selectattr(2, 'float') | selectattr(2, 'ge', memory_threshold) }}"
+
+    - name: Debug high memory processes
+      debug:
+        msg: "Processes exceeding {{ memory_threshold }}% memory: {{ high_memory_processes }}"
+      when: high_memory_processes | length > 0
+
+    - name: Kill processes exceeding memory threshold
+      win_shell: "taskkill /F /PID {{ item.0 }}"
+      with_items: "{{ high_memory_processes }}"
+      register: kill_results
       ignore_errors: yes
+      when: high_memory_processes | length > 0
+
+    - name: Debug kill results
+      debug:
+        msg: "Kill results: {{ kill_results }}"
+      when: high_memory_processes | length > 0
+
+    - name: Set flag if any process was killed successfully
+      set_fact:
+        process_killed: "{{ kill_results.results | selectattr('rc', 'eq', 0) | list | length > 0 }}"
+      when: high_memory_processes | length > 0
 
     - name: Get Incident Sys_ID
       uri:
@@ -78,7 +92,7 @@
         incident_sys_id: "{{ incident_info.json.result[0].sys_id }}"
       when: incident_info.json.result | length > 0
 
-    - name: Update SNOW ticket - PID Kill Result
+    - name: Update SNOW ticket - PID Kill Success
       uri:
         url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
         method: PATCH
@@ -91,8 +105,25 @@
           {
             "state": "7",
             "close_code": "Solution Provided",
-            "close_notes": "{{ kill_result.stdout | default('No output from taskkill') }}"
+            "close_notes": "One or more processes exceeding {{ memory_threshold }}% memory were killed by automation."
           }
         status_code: [200, 201, 403, 405]
-      when: incident_sys_id is defined
+      when: process_killed | default(false) | bool and incident_sys_id is defined
+      delegate_to: localhost
+
+    - name: Update SNOW ticket - No High Memory Process Found
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
+        method: PATCH
+        force_basic_auth: yes
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          {
+            "work_notes": "No process found consuming more than {{ memory_threshold }}% memory. No action taken by automation."
+          }
+        status_code: [200, 201, 403, 405]
+      when: high_memory_processes | length == 0 and incident_sys_id is defined
       delegate_to: localhost
