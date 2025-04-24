@@ -43,7 +43,10 @@
       win_ping:
 
     - name: Get processes and their memory usage
-      win_shell: Get-Process | Select-Object Id, ProcessName, @{Name='MemoryPercent';Expression={$_.WorkingSet64 / ([System.Environment]::OSVersion.VersionString -like '*Server*') ? ([System.Diagnostics.PerformanceCounter]::new('Process', '% Processor Time', $_.ProcessName).NextValue() / [Environment]::ProcessorCount) : (($_.WorkingSet64 / [System.Environment]::WorkingSet) * 100)}} | Sort-Object MemoryPercent -Descending
+      win_shell: |
+        Get-Process |
+        Select-Object Id, ProcessName, @{Name='MemoryPercent';Expression={$_.WorkingSet64 / ([System.Environment]::OSVersion.VersionString -like '*Server*') ? ([System.Diagnostics.PerformanceCounter]::new('Process', '% Processor Time', $_.ProcessName).NextValue() / [Environment]::ProcessorCount) : (($_.WorkingSet64 / [System.Environment]::WorkingSet) * 100)}} |
+        Sort-Object MemoryPercent -Descending
       register: process_memory_info
 
     - name: Debug memory-consuming processes
