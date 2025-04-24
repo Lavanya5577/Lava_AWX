@@ -108,5 +108,5 @@
             "close_notes": "Process with PID {{ top_pid }} using {{ top_memory_percent }}% memory was killed successfully."
           }
         status_code: [200, 201, 403, 405]
-      when: pid_killed | default(false) | bool and incident_sys_id is defined
+      when: kill_result is defined and kill_result.rc == 0 and incident_sys_id is defined
       delegate_to: localhost
