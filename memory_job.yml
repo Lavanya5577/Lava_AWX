@@ -43,33 +43,34 @@
 
     - name: Get total physical memory (in MB)
       win_shell: |
-        (Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory / 1MB
+        [math]::Round((Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory / 1MB, 2)
       register: total_memory_raw
 
     - name: Set total memory fact
       set_fact:
-        total_memory_mb: "{{ total_memory_raw.stdout | float | round(2) }}"
+        total_memory_mb: "{{ total_memory_raw.stdout | float }}"
 
-    - name: Get highest memory consuming process details
+    - name: Get top memory-consuming process info
       win_shell: |
         $proc = Get-Process | Sort-Object WorkingSet -Descending | Select-Object -First 1
+        $pid = $proc.Id
         $memMB = [math]::Round($proc.WorkingSet / 1MB, 2)
-        $usagePercent = [math]::Round(($proc.WorkingSet / {{ total_memory_mb }}MB) * 100, 2)
-        "$($proc.Id),$memMB,$usagePercent"
-      register: top_process_raw
+        $usagePercent = [math]::Round(($proc.WorkingSet / ({{ total_memory_mb }} * 1MB)) * 100, 2)
+        "$pid|$memMB|$usagePercent"
+      register: top_process_output
 
-    - name: Parse process details
+    - name: Parse top process info
       set_fact:
-        top_process_details: "{{ top_process_raw.stdout | trim | split(',') }}"
-        top_pid: "{{ top_process_details[0] }}"
-        top_memory_mb: "{{ top_process_details[1] | float }}"
-        top_memory_percent: "{{ top_process_details[2] | float }}"
+        top_process_fields: "{{ top_process_output.stdout | trim | split('|') }}"
+        top_pid: "{{ top_process_fields[0] }}"
+        top_memory_mb: "{{ top_process_fields[1] | float }}"
+        top_memory_percent: "{{ top_process_fields[2] | float }}"
 
-    - name: Show process details
+    - name: Show top process info
       debug:
-        msg: "Top PID: {{ top_pid }}, Memory Usage: {{ top_memory_mb }} MB ({{ top_memory_percent }}%)"
+        msg: "PID: {{ top_pid }}, Memory: {{ top_memory_mb }} MB, Usage: {{ top_memory_percent }}%"
 
-    - name: Kill process if memory usage > 80%
+    - name: Kill process if memory > 80%
       win_shell: |
         taskkill /F /PID {{ top_pid }}
       when: top_memory_percent > 80
