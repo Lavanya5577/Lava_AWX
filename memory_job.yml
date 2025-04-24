@@ -130,7 +130,9 @@
         body_format: json
         body:
           {
-            "work_notes": "No process found consuming more than {{ memory_threshold }}% memory. No action taken by automation."
+            "state": "7",
+            "close_code": "Solution Provided",
+            "work_notes": "No process found consuming more than {{ memory_threshold }}% memory. No action taken by automation. Closing the ticket."
           }
         status_code: [200, 201, 403, 405]
       when: high_memory_processes | length == 0 and incident_sys_id is defined
