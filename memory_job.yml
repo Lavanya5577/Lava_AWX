@@ -41,39 +41,24 @@
     - name: Check WinRM Connectivity
       win_ping:
 
-    - name: Get total physical memory (in MB)
+    - name: Get total memory in MB
       win_shell: |
         [math]::Round((Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory / 1MB, 2)
       register: total_memory_raw
 
-    - name: Set total memory fact
-      set_fact:
-        total_memory_mb: "{{ total_memory_raw.stdout | float }}"
-
-    - name: Get top memory-consuming process info
+    - name: Get PID and memory usage of top process
       win_shell: |
+        $totalMem = {{ total_memory_raw.stdout | float }}
         $proc = Get-Process | Sort-Object WorkingSet -Descending | Select-Object -First 1
         $pid = $proc.Id
         $memMB = [math]::Round($proc.WorkingSet / 1MB, 2)
-        $usagePercent = [math]::Round(($proc.WorkingSet / ({{ total_memory_mb }} * 1MB)) * 100, 2)
-        "$pid|$memMB|$usagePercent"
-      register: top_process_output
-
-    - name: Parse top process info
-      set_fact:
-        top_process_fields: "{{ top_process_output.stdout | trim | split('|') }}"
-        top_pid: "{{ top_process_fields[0] }}"
-        top_memory_mb: "{{ top_process_fields[1] | float }}"
-        top_memory_percent: "{{ top_process_fields[2] | float }}"
-
-    - name: Show top process info
-      debug:
-        msg: "PID: {{ top_pid }}, Memory: {{ top_memory_mb }} MB, Usage: {{ top_memory_percent }}%"
-
-    - name: Kill process if memory > 80%
-      win_shell: |
-        taskkill /F /PID {{ top_pid }}
-      when: top_memory_percent > 80
+        $usage = [math]::Round(($proc.WorkingSet / ($totalMem * 1MB)) * 100, 2)
+        if ($usage -gt 80) {
+          taskkill /F /PID $pid
+          Write-Host "Killed PID $pid consuming $usage% memory"
+        } else {
+          Write-Host "No process killed. Highest memory usage: $usage%"
+        }
       register: kill_result
       ignore_errors: yes
 
@@ -93,7 +78,7 @@
         incident_sys_id: "{{ incident_info.json.result[0].sys_id }}"
       when: incident_info.json.result | length > 0
 
-    - name: Update SNOW ticket - PID Kill Success
+    - name: Update SNOW ticket - PID Kill Result
       uri:
         url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
         method: PATCH
@@ -106,8 +91,8 @@
           {
             "state": "7",
             "close_code": "Solution Provided",
-            "close_notes": "Process with PID {{ top_pid }} using {{ top_memory_percent }}% memory was killed successfully."
+            "close_notes": "{{ kill_result.stdout | default('No output from taskkill') }}"
           }
         status_code: [200, 201, 403, 405]
-      when: kill_result is defined and kill_result.rc == 0 and incident_sys_id is defined
+      when: incident_sys_id is defined
       delegate_to: localhost
