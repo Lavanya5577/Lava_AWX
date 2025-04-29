@@ -1,41 +1,33 @@
-- name: Verify if a user exists and can be impersonated using SSH
-  hosts: "10.112.0.11"
+- name: Check if a user exists and can run a command
+  hosts: all
   gather_facts: false
-  become: true
   vars:
-    username_to_check: "lava"  # Replace with your username
-    ssh_password: "jFtN4oyoQGhZ"  # User password here
+    username_to_check: "lava"   # Replace with the username you created earlier
+
   tasks:
 
-    - name: Check if the user exists on the system
-      ansible.builtin.command: id {{ username_to_check }}
-      register: user_check
+    - name: Check if user exists in /etc/passwd
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ username_to_check }}"
+      register: passwd_entry
+
+    - name: Fail if user does not exist
+      ansible.builtin.fail:
+        msg: "User '{{ username_to_check }}' does not exist on the system."
+      when: passwd_entry is not defined or passwd_entry is not truthy
+
+    - name: Run 'whoami' as the user using sudo
+      ansible.builtin.command: sudo -u {{ username_to_check }} whoami
+      register: user_whoami
       ignore_errors: true
 
-    - name: Display user existence result
+    - name: Validate 'whoami' output
       ansible.builtin.debug:
-        msg: >
-          {% if user_check.rc == 0 %}
-            User '{{ username_to_check }}' exists.
-          {% else %}
-            User '{{ username_to_check }}' does NOT exist.
-          {% endif %}
+        msg: "Successfully ran 'whoami' as user: {{ user_whoami.stdout }}"
+      when: user_whoami.rc == 0
 
-    - name: Try to login using SSH as the user
-      ansible.builtin.command: whoami
-      become_user: "{{ username_to_check }}"
-      register: impersonation_check
-      ignore_errors: true
-      when: user_check.rc == 0
-      vars:
-        ansible_ssh_pass: "{{ ssh_password }}"  # Password for SSH login
-
-    - name: Display impersonation result
-      ansible.builtin.debug:
-        msg: >
-          {% if impersonation_check.rc == 0 %}
-            Successfully impersonated '{{ username_to_check }}'.
-          {% else %}
-            Failed to impersonate '{{ username_to_check }}'.
-          {% endif %}
-      when: user_check.rc == 0
+    - name: Show error if command failed
+      ansible.builtin.fail:
+        msg: "Failed to run command as user '{{ username_to_check }}'. Check sudo access or shell setup."
+      when: user_whoami.rc != 0
